@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat with AI</title>
+    <!-- Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div id="app" class="container mx-auto px-4 py-8 max-w-4xl">        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Chat with AI</h1>
+        </header>
+
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <!-- Chat Messages -->
+            <div class="space-y-4 mb-4 h-[400px] overflow-y-auto" ref="chatContainer">
+                <div v-for="(message, index) in messages" :key="index" 
+                     :class="['p-4 rounded-lg', message.role === 'user' ? 'bg-blue-100 ml-12' : 'bg-gray-100 mr-12']">
+                    <div class="font-semibold mb-1" v-text="message.role === 'user' ? 'You' : 'AI'"></div>
+                    <div class="text-gray-700 whitespace-pre-line leading-relaxed" v-text="message.content"></div>
+                </div>
+            </div>
+
+            <!-- Input Form -->
+            <div class="mt-4 border-t pt-4">
+                <form @submit.prevent="sendMessage" class="flex gap-2">
+                    <div class="flex-1">
+                        <textarea 
+                            v-model="userInput"
+                            placeholder="Type your message here..."
+                            class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-20"
+                            :disabled="isLoading"
+                            @keydown.enter.exact.prevent="sendMessage"
+                        ></textarea>
+                    </div>
+                    <button 
+                        type="submit"
+                        class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-400 self-start"
+                        :disabled="isLoading || !userInput.trim()"
+                    >
+                        {{ isLoading ? 'Sending...' : 'Send' }}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, nextTick } = Vue
+
+        createApp({
+            setup() {
+                // Initialize with welcome message
+                const messages = ref([
+                    { role: 'assistant', content: '欢迎光临，我是你的AI助手' }
+                ])
+                const userInput = ref('')
+                const isLoading = ref(false)
+                const chatContainer = ref(null)
+
+                const scrollToBottom = async () => {
+                    await nextTick()
+                    chatContainer.value.scrollTop = chatContainer.value.scrollHeight
+                }
+
+                const sendMessage = async () => {
+                    if (!userInput.value.trim() || isLoading.value) return
+
+                    const userMessage = userInput.value
+                    messages.value.push({ role: 'user', content: userMessage })
+                    messages.value.push({ role: 'assistant', content: 'AI助手在思考中...' })
+                    userInput.value = ''
+                    isLoading.value = true
+                    await scrollToBottom()
+
+                    try {
+                        const response = await fetch('/api/chat', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ message: userMessage })
+                        })
+
+                        const data = await response.json()
+                        // Remove the thinking message
+                        messages.value.pop()
+                        messages.value.push({ role: 'assistant', content: data.response })
+                    } catch (error) {
+                        // Remove the thinking message
+                        messages.value.pop()
+                        messages.value.push({ 
+                            role: 'assistant', 
+                            content: 'Sorry, an error occurred while processing your request.' 
+                        })
+                        console.error('Error:', error)
+                    } finally {
+                        isLoading.value = false
+                        scrollToBottom()
+                    }
+                }
+
+                return {
+                    messages,
+                    userInput,
+                    isLoading,
+                    sendMessage,
+                    chatContainer
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
